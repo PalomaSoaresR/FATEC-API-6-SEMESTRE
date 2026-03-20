@@ -2,11 +2,12 @@
 API 6º Semestre Banco de Dados
 <br/>
 Thunderstone
+  <p align="center">
+  <img src="docs/img/thunderstone.png" alt="Thunderstone Logo" width="100">
+</p>
 </h1>
 
-<p align="center">
-  <img src="docs/img/Thunderstone.png" alt="Thunderstone Logo" width="100">
-</p>
+
 
 <h3 align="center">
   <img src="docs/img/logo-pokemon.png" alt="logo" width="30" style="vertical-align: middle;"> Equipe Pokémon
