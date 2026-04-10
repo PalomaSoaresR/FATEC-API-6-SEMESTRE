@@ -15,6 +15,7 @@ from backend.settings import Settings
 from backend.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
+SSDMT_INSERT_BATCH_SIZE = 5000
 
 
 def _get_collection(name: str):
@@ -38,6 +39,166 @@ def _persist_ctmt(records: list[dict], job_id: str, descartados: int, processed_
         upsert=True,
     )
     return len(records)
+
+
+def _iter_ndjson(path: str):
+    with Path(path).open('r', encoding='utf-8') as f:
+        for line in f:
+            payload = line.strip()
+            if not payload:
+                continue
+            yield json.loads(payload)
+
+
+def _to_notebook_ssdmt_tabular(raw: dict, job_id: str, processed_at: str) -> dict | None:
+    cod_id = _normalize_required_field(raw.get('COD_ID', raw.get('cod_id')))
+    ctmt = _normalize_required_field(raw.get('CTMT', raw.get('ctmt')))
+    if cod_id is None or ctmt is None:
+        return None
+
+    return {
+        'job_id': job_id,
+        'COD_ID': cod_id,
+        'CTMT': ctmt,
+        'CONJ': raw.get('CONJ', raw.get('conj')),
+        'COMP': raw.get('COMP', raw.get('comp')),
+        'DIST': raw.get('DIST', raw.get('dist')),
+        'processed_at': raw.get('processed_at') or processed_at,
+    }
+
+
+def _to_notebook_ssdmt_geo(raw: dict, job_id: str, processed_at: str) -> dict | None:
+    properties = raw.get('properties') or raw
+    geometry = raw.get('geometry')
+    if geometry is None:
+        return None
+
+    cod_id = _normalize_required_field(
+        properties.get('COD_ID', properties.get('cod_id'))
+    )
+    ctmt = _normalize_required_field(
+        properties.get('CTMT', properties.get('ctmt'))
+    )
+    if cod_id is None or ctmt is None:
+        return None
+
+    return {
+        'job_id': job_id,
+        'COD_ID': cod_id,
+        'CTMT': ctmt,
+        'CONJ': properties.get('CONJ', properties.get('conj')),
+        'COMP': properties.get('COMP', properties.get('comp')),
+        'DIST': properties.get('DIST', properties.get('dist')),
+        'processed_at': properties.get('processed_at') or processed_at,
+        'geometry': geometry,
+    }
+
+
+def _persist_ssdmt(results: list[dict], job_id: str, processed_at: str) -> dict:
+    ssdmt_results = [
+        r for r in (results or []) if r.get('layer') in {'SSDMT', 'SSDMT_CHUNK'}
+    ]
+    if not ssdmt_results:
+        return {
+            'total': 0,
+            'descartados': 0,
+            'falhas_reprojecao': 0,
+            'tabular_paths': [],
+            'geo_paths': [],
+        }
+
+    tabular_paths: list[str] = []
+    geo_paths: list[str] = []
+    total_descartados = 0
+    total_falhas = 0
+
+    for result in ssdmt_results:
+        total_descartados += int(result.get('descartados') or 0)
+        total_falhas += int(result.get('falhas_reprojecao') or 0)
+
+        tabular_info = result.get('ssdmt_tabular') or {}
+        geo_info = result.get('ssdmt_geo') or {}
+
+        tabular_path = tabular_info.get('path')
+        geo_path = geo_info.get('path')
+
+        if tabular_path:
+            tabular_paths.append(tabular_path)
+        if geo_path:
+            geo_paths.append(geo_path)
+
+    tabular_col = _get_collection('segmentos_mt_tabular')
+    geo_col = _get_collection('segmentos_mt_geo')
+
+    tabular_col.create_index([('job_id', 1)], background=True)
+    tabular_col.create_index(
+        [('job_id', 1), ('COD_ID', 1)],
+        unique=True,
+        background=True,
+    )
+    tabular_col.create_index([('job_id', 1), ('CONJ', 1)], background=True)
+    tabular_col.create_index([('job_id', 1), ('CTMT', 1)], background=True)
+
+    geo_col.create_index([('job_id', 1)], background=True)
+    geo_col.create_index(
+        [('job_id', 1), ('COD_ID', 1)],
+        unique=True,
+        background=True,
+    )
+    geo_col.create_index([('geometry', '2dsphere')], background=True)
+
+    tabular_col.delete_many({'job_id': job_id})
+    geo_col.delete_many({'job_id': job_id})
+
+    total_inserted = 0
+    tabular_batch: list[dict] = []
+    geo_batch: list[dict] = []
+
+    for path in tabular_paths:
+        for raw in _iter_ndjson(path):
+            doc = _to_notebook_ssdmt_tabular(raw, job_id, processed_at)
+            if doc is None:
+                continue
+            tabular_batch.append(doc)
+            if len(tabular_batch) >= SSDMT_INSERT_BATCH_SIZE:
+                tabular_col.insert_many(tabular_batch, ordered=False)
+                total_inserted += len(tabular_batch)
+                tabular_batch = []
+
+    if tabular_batch:
+        tabular_col.insert_many(tabular_batch, ordered=False)
+        total_inserted += len(tabular_batch)
+
+    for path in geo_paths:
+        for raw in _iter_ndjson(path):
+            doc = _to_notebook_ssdmt_geo(raw, job_id, processed_at)
+            if doc is None:
+                continue
+            geo_batch.append(doc)
+            if len(geo_batch) >= SSDMT_INSERT_BATCH_SIZE:
+                geo_col.insert_many(geo_batch, ordered=False)
+                geo_batch = []
+
+    if geo_batch:
+        geo_col.insert_many(geo_batch, ordered=False)
+
+    for path in tabular_paths + geo_paths:
+        try:
+            Path(path).unlink(missing_ok=True)
+        except Exception:
+            logger.warning(
+                '[task_finalizar] Falha ao remover arquivo temporario SSDMT. job_id=%s path=%s',
+                job_id,
+                path,
+            )
+
+    return {
+        'total': total_inserted,
+        'descartados': total_descartados,
+        'falhas_reprojecao': total_falhas,
+        'tabular_paths': tabular_paths,
+        'geo_paths': geo_paths,
+    }
 
 
 REQUIRED_CTMT_COLUMNS: set[str] = {
@@ -610,6 +771,9 @@ def task_finalizar(
 
     processed_at = datetime.now(timezone.utc).isoformat()
     ctmt_total = 0
+    ssdmt_total = 0
+    ssdmt_descartados = 0
+    ssdmt_falhas_reprojecao = 0
 
     try:
         ctmt_result = next((r for r in (results or []) if r.get('layer') == 'CTMT'), None)
@@ -626,12 +790,27 @@ def task_finalizar(
                 ctmt_total,
             )
 
+        ssdmt_stats = _persist_ssdmt(results=results or [], job_id=job_id, processed_at=processed_at)
+        ssdmt_total = ssdmt_stats['total']
+        ssdmt_descartados = ssdmt_stats['descartados']
+        ssdmt_falhas_reprojecao = ssdmt_stats['falhas_reprojecao']
+        logger.info(
+            '[task_finalizar] SSDMT persistido. job_id=%s total=%s descartados=%s falhas_reprojecao=%s',
+            job_id,
+            ssdmt_total,
+            ssdmt_descartados,
+            ssdmt_falhas_reprojecao,
+        )
+
         _get_collection('jobs').update_one(
             {'job_id': job_id},
             {'$set': {
                 'job_id': job_id,
                 'status': 'completed',
                 'ctmt_total': ctmt_total,
+                'ssdmt_total': ssdmt_total,
+                'ssdmt_descartados': ssdmt_descartados,
+                'ssdmt_falhas_reprojecao': ssdmt_falhas_reprojecao,
                 'completed_at': processed_at,
                 'updated_at': processed_at,
                 'error_message': None,
@@ -639,17 +818,28 @@ def task_finalizar(
             upsert=True,
         )
 
-        logger.info('[task_finalizar] Concluido. job_id=%s ctmt_total=%s', job_id, ctmt_total)
+        logger.info(
+            '[task_finalizar] Concluido. job_id=%s ctmt_total=%s ssdmt_total=%s',
+            job_id,
+            ctmt_total,
+            ssdmt_total,
+        )
         return {
             'job_id': job_id,
             'status': 'completed',
             'ctmt_total': ctmt_total,
+            'ssdmt_total': ssdmt_total,
         }
 
     except Exception as exc:
         logger.error('[task_finalizar] Falha na persistencia. job_id=%s erro=%s', job_id, exc)
         try:
             _get_collection('circuitos_mt').delete_many({'job_id': job_id})
+        except Exception:
+            pass
+        try:
+            _get_collection('segmentos_mt_tabular').delete_many({'job_id': job_id})
+            _get_collection('segmentos_mt_geo').delete_many({'job_id': job_id})
         except Exception:
             pass
         try:
