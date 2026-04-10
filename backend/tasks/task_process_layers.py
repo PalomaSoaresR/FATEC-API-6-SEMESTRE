@@ -92,6 +92,7 @@ REQUIRED_CTMT_COLUMNS: set[str] = {
     'PNTBT_12',
 }
 
+REQUIRED_UNSEMT_COLUMNS: set[str] = {'COD_ID','CONJ','TIP_UNID','SIT_ATIV'}
 REQUIRED_CONJ_COLUMNS: set[str] = {'COD_ID', 'NOME', 'DIST'}
 REQUIRED_SSDMT_COLUMNS: set[str] = {'COD_ID', 'CTMT', 'CONJ', 'COMP', 'DIST'}
 SSDMT_BATCH_SIZE = int(os.getenv('SSDMT_BATCH_SIZE', '10000'))
@@ -328,6 +329,11 @@ def task_processar_ctmt(job_id: str, gdb_path: str) -> dict:
     with fiona.open(gdb_path, layer='CTMT') as src:
         properties = src.schema.get('properties', {})
         present_cols = set(properties.keys())
+        logger.info(
+            '[task_processar_ctmt] Colunas existentes na camada CTMT: %s',
+            present_cols
+        )
+
         missing = REQUIRED_CTMT_COLUMNS - present_cols
         if missing:
             raise RuntimeError(f'Camada CTMT sem colunas: {missing}')
@@ -518,6 +524,72 @@ def task_processar_conj(job_id: str, gdb_path: str) -> dict:
     )
     return {
         'layer': 'CONJ',
+        'job_id': job_id,
+        'records': records,
+        'total': len(records),
+        'descartados': descartados,
+    }
+    
+@celery_app.task(name='etl.processar_unsemt')
+def task_processar_unsemt(job_id: str, gdb_path: str) -> dict:
+    logger.info(
+        '[task_processar_unsemt] Inicio do processamento. job_id=%s gdb_path=%s',
+        job_id,
+        gdb_path,
+    )
+
+    records: list[dict] = []
+    descartados = 0
+    coordinates = None
+
+    with fiona.open(gdb_path, layer='UNSEMT') as src:
+        properties = src.schema.get('properties', {})
+        present_cols = set(properties.keys())
+        logger.info(
+            '[task_processar_unsemt] Colunas existentes na camada UNSEMT: %s',
+            present_cols
+        )
+        missing = REQUIRED_UNSEMT_COLUMNS - present_cols
+        if missing:
+            raise RuntimeError(f'Camada UNSEMT sem colunas: {missing}')
+
+        for feature in src:
+            row = feature.get('properties') or {}
+            cod_id = row.get('COD_ID')
+            if cod_id is None:
+                descartados += 1
+                continue
+
+            conj = row.get('CONJ')
+            tip_unid = row.get('TIP_UNID')
+            sit_ativ = row.get('SIT_ATIV')
+            
+            if tip_unid != '32' or sit_ativ != 'AT':
+                descartados += 1
+                continue
+            
+            geometry = feature.get('geometry')
+            if geometry and geometry['type'] == 'Point':
+                coordinates = tuple(geometry['coordinates'])
+
+            records.append({
+                'cod_id': cod_id,
+                'conj': conj,
+                'coordinates': coordinates,
+                'job_id': job_id,
+            })
+
+    if not records:
+        raise RuntimeError('Camada UNSEMT sem registros validos apos limpeza')
+    
+    logger.info(
+        '[task_processar_unsemt] Processamento concluido. job_id=%s total=%s descartados=%s',
+        job_id,
+        len(records),
+        descartados,
+    )
+    return {
+        'layer': 'UNSEMT',
         'job_id': job_id,
         'records': records,
         'total': len(records),

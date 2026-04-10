@@ -8,10 +8,12 @@ from backend.tasks.task_process_layers import (
     REQUIRED_CONJ_COLUMNS,
     REQUIRED_SSDMT_COLUMNS,
     SSDMT_BATCH_SIZE,
+    REQUIRED_UNSEMT_COLUMNS,
     task_processar_ctmt,
     task_processar_conj,
     task_processar_ssdmt_chunk,
     task_processar_ssdmt,
+    task_processar_unsemt
 )
 
 
@@ -115,6 +117,18 @@ def _feature_ssdmt(cod_id, ctmt, geometry=None, conj='CJ', comp=10, dist='404'):
         'geometry': geometry,
     }
 
+def _feature_unsemt(cod_id, conj='CJ', tip_unid='32', sit_ativ='AT', geometry=None):
+    if geometry is None:
+        geometry = {'type': 'Point', 'coordinates': [-54.59809, -22.79093]}
+    return {
+        'properties': {
+            'COD_ID': cod_id,
+            'CONJ': conj,
+            'TIP_UNID': tip_unid,
+            'SIT_ATIV': sit_ativ,
+        },
+        'geometry': geometry,
+    }
 
 def test_ctmt_retorna_records_com_colunas_necessarias():
     dataset = _FakeDataset(
@@ -484,3 +498,122 @@ def test_ssdmt_chunk_processa_apenas_janela_configurada(tmp_path):
     with open(tabular_path, encoding='utf-8') as tabular_file:
         first_tabular_line = tabular_file.readline().strip()
     assert json.loads(first_tabular_line)['cod_id'] == 'SS-3'
+
+
+
+def test_unsemt_retorna_records_com_colunas_necessarias():
+    dataset = _FakeDataset(
+        columns=set(REQUIRED_UNSEMT_COLUMNS),
+        rows=[
+            _feature_unsemt('UN-01', conj='CJ1'),
+            _feature_unsemt('UN-02', conj='CJ2'),
+        ],
+    )
+
+    with patch(f'{TASK_MODULE}.fiona.open', return_value=dataset):
+        result = task_processar_unsemt.run('job-unsemt-1', '/tmp/arquivo.gdb')
+
+    assert result['layer'] == 'UNSEMT'
+    assert result['job_id'] == 'job-unsemt-1'
+    assert result['total'] == 2
+    assert result['descartados'] == 0
+
+    record = result['records'][0]
+    assert record['cod_id'] == 'UN-01'
+    assert record['conj'] == 'CJ1'
+    assert record['coordinates'] == (-54.59809, -22.79093)
+    assert record['job_id'] == 'job-unsemt-1'
+
+
+def test_unsemt_descarta_registro_sem_cod_id():
+    dataset = _FakeDataset(
+        columns=set(REQUIRED_UNSEMT_COLUMNS),
+        rows=[
+            _feature_unsemt(None),
+            _feature_unsemt('UN-VALIDO', conj='CJ1'),
+        ],
+    )
+
+    with patch(f'{TASK_MODULE}.fiona.open', return_value=dataset):
+        result = task_processar_unsemt.run('job-unsemt-2', '/tmp/arquivo.gdb')
+
+    assert result['total'] == 1
+    assert result['descartados'] == 1
+    assert result['records'][0]['cod_id'] == 'UN-VALIDO'
+
+
+def test_unsemt_descarta_registro_com_tip_unid_diferente():
+    dataset = _FakeDataset(
+        columns=set(REQUIRED_UNSEMT_COLUMNS),
+        rows=[
+            _feature_unsemt('UN-01', tip_unid='99'),  # deve descartar
+            _feature_unsemt('UN-02', tip_unid='32'),  # deve manter
+        ],
+    )
+
+    with patch(f'{TASK_MODULE}.fiona.open', return_value=dataset):
+        result = task_processar_unsemt.run('job-unsemt-3', '/tmp/arquivo.gdb')
+
+    assert result['total'] == 1
+    assert result['descartados'] == 1
+    assert result['records'][0]['cod_id'] == 'UN-02'
+
+
+def test_unsemt_descarta_registro_com_sit_ativ_diferente():
+    dataset = _FakeDataset(
+        columns=set(REQUIRED_UNSEMT_COLUMNS),
+        rows=[
+            _feature_unsemt('UN-01', sit_ativ='DE'),  # deve descartar
+            _feature_unsemt('UN-02', sit_ativ='AT'),  # deve manter
+        ],
+    )
+
+    with patch(f'{TASK_MODULE}.fiona.open', return_value=dataset):
+        result = task_processar_unsemt.run('job-unsemt-4', '/tmp/arquivo.gdb')
+
+    assert result['total'] == 1
+    assert result['descartados'] == 1
+    assert result['records'][0]['cod_id'] == 'UN-02'
+
+
+def test_unsemt_lanca_erro_quando_faltam_colunas():
+    dataset = _FakeDataset(
+        columns={'COD_ID', 'CONJ'},
+        rows=[_feature_unsemt('UN-01')],
+    )
+
+    with patch(f'{TASK_MODULE}.fiona.open', return_value=dataset):
+        with pytest.raises(RuntimeError, match='Camada UNSEMT sem colunas'):
+            task_processar_unsemt.run('job-unsemt-5', '/tmp/arquivo.gdb')
+
+
+def test_unsemt_lanca_erro_sem_registros_validos():
+    dataset = _FakeDataset(
+        columns=set(REQUIRED_UNSEMT_COLUMNS),
+        rows=[
+            _feature_unsemt(None),
+            _feature_unsemt('UN-01', tip_unid='99'),
+        ],
+    )
+
+    with patch(f'{TASK_MODULE}.fiona.open', return_value=dataset):
+        with pytest.raises(
+            RuntimeError,
+            match='Camada UNSEMT sem registros validos apos limpeza',
+        ):
+            task_processar_unsemt.run('job-unsemt-6', '/tmp/arquivo.gdb')
+
+
+def test_unsemt_coordinates_none_quando_sem_geometry():
+    dataset = _FakeDataset(
+        columns=set(REQUIRED_UNSEMT_COLUMNS),
+        rows=[
+            _feature_unsemt('UN-01', geometry=None),
+        ],
+    )
+    dataset._rows[0]['geometry'] = None
+
+    with patch(f'{TASK_MODULE}.fiona.open', return_value=dataset):
+        result = task_processar_unsemt.run('job-unsemt-7', '/tmp/arquivo.gdb')
+
+    assert result['records'][0]['coordinates'] is None
