@@ -107,14 +107,17 @@ async def token(client, user):
 @pytest.fixture(scope="session")
 def mongo_db():
     """Cria o cliente e retorna o banco já autenticado."""
-    user = os.getenv("MONGO_ROOT_USER", "root")
-    pw = os.getenv("MONGO_ROOT_PASSWORD", "1234")
-    host = os.getenv("MONGO_HOST", "mongodb") 
+    full_uri = os.getenv("MONGO_URI")
     db_name = os.getenv("MONGO_DB", "fatec_api")
 
-    uri = f"mongodb://{user}:{pw}@{host}:27017/?authSource=admin"
-    
-    client = MongoClient(uri, serverSelectionTimeoutMS=5000)
+    if full_uri:
+        client = MongoClient(full_uri, serverSelectionTimeoutMS=5000)
+    else:
+        user = os.getenv("MONGO_ROOT_USER", "root")
+        pw = os.getenv("MONGO_ROOT_PASSWORD", "1234")
+        host = os.getenv("MONGO_HOST", "mongodb") 
+        uri = f"mongodb://{user}:{pw}@{host}:27017/?authSource=admin"
+        client = MongoClient(uri, serverSelectionTimeoutMS=5000)
 
     yield client[db_name]
     client.close()
@@ -128,12 +131,6 @@ def setup_test_data(mongo_db):
     """
     colecao = mongo_db["segmentos_mt_tabular"]
     
-    registro = colecao.find_one({"job_id": {"$exists": True}})
-    
-    if not registro:
-        pytest.fail(
-            "Falha no setup: A coleção 'segmentos_mt_tabular' está vazia "
-            "ou não contém documentos com o campo 'job_id'."
-        )
+    registro = colecao.find_one({"job_id": {"$exists": True}}, {"job_id": 1})
         
     return registro["job_id"]
