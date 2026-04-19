@@ -9,12 +9,15 @@ from ..core.calculo_tam import calculo_tam
 router = APIRouter()
 
 def get_db():
-    mongo_uri = os.getenv('MONGO_URI', "mongodb://mongodb:27017")
-    client = MongoClient(mongo_uri)
-    try:
-        yield client['fatec_api']
-    finally:
-        client.close()
+    user = os.getenv("MONGO_ROOT_USER", "root")
+    pw = os.getenv("MONGO_ROOT_PASSWORD", "1234")
+    host = os.getenv("MONGO_HOST", "mongodb")
+    db_name = os.getenv("MONGO_DB", "fatec_api")
+    
+    uri = f"mongodb://{user}:{pw}@{host}:27017/?authSource=admin"
+    
+    client = MongoClient(uri, serverSelectionTimeoutMS=5000)
+    return client[db_name]
 
 @router.get('/tam/{job_id}')
 async def get_json_tam(job_id: str, db=Depends(get_db)):
