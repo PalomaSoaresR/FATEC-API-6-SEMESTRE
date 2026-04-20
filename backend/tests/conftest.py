@@ -1,3 +1,5 @@
+import uuid
+
 import factory
 import pytest
 import pytest_asyncio
@@ -119,20 +121,18 @@ async def mongo_db():
 @pytest_asyncio.fixture
 async def setup_test_data(mongo_db):
     colecao = mongo_db["segmentos_mt_tabular"]
-    registro = await colecao.find_one({"job_id": {"$exists": True}})
     
-    if not registro:
-        test_job_id = "test-job-123"
-        colecao.insert_one({
-            "job_id": test_job_id,
-            "CTMT": "ALIMENTADOR_TESTE",
-            "COMP": 1500.0,  
-            "CONJ": "999",
-            "DIST": "DIST_TESTE"
-        })
-        return test_job_id
-        
-    return registro["job_id"]
+    test_job_id = "test-job-" + str(uuid.uuid4()) 
+    
+    await colecao.insert_one({
+        "job_id": test_job_id,
+        "CTMT": "ALIMENTADOR_TESTE",
+        "COMP": 1500.0,  
+        "CONJ": "999",
+        "DIST": "DIST_TESTE"
+    })
+    
+    return test_job_id
 
 @pytest_asyncio.fixture
 async def api_response(client, setup_test_data):
