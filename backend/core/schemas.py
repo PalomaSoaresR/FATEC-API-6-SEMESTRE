@@ -25,3 +25,17 @@ class UserList(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+
+
+class CriticidadeRequest(BaseModel):
+    ano: int
+    distribuidora: str
+
+
+class CriticidadeResponse(BaseModel):
+    ano: int
+    distribuidora: str
+    score_criticidade: float
+    desvio_dec: float
+    desvio_fec: float
+    cor: str
