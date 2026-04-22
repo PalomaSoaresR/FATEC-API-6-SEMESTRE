@@ -26,12 +26,6 @@ class Token(BaseModel):
     access_token: str
     token_type: str
 
-
-class CriticidadeRequest(BaseModel):
-    ano: int
-    distribuidora: str
-
-
 class CriticidadeResponse(BaseModel):
     ano: int
     distribuidora: str

@@ -24,9 +24,6 @@ def calcular_criticidade_endpoint(
         
     Returns:
         Score de criticidade calculado com desvios DEC e FEC
-        def calcular_criticidade_endpoint(
-    ano: int = Query(..., description="Ano de análise"),
-    distribuidora: str = Query(..., description="Nome da distribuidora")
 
     Raises:
         HTTPException: Se não houver dados para os parâmetros fornecidos

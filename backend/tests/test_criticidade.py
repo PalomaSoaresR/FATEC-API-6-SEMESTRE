@@ -3,8 +3,6 @@ Testes automatizados para o endpoint de criticidade.
 Formato funcional sem classes, seguindo as melhores práticas.
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
 from backend.app import app
