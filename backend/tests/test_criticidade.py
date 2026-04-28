@@ -3,6 +3,7 @@ Testes automatizados para o endpoint de criticidade.
 Formato funcional sem classes, seguindo as melhores práticas.
 """
 
+from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 from backend.app import app
