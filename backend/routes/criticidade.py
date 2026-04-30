@@ -4,13 +4,15 @@ from fastapi import APIRouter, HTTPException, Query
 
 from backend.core.schemas import CriticidadeResponse
 from backend.services.criticidade import calcular_score_criticidade
+from datetime import date
+
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-_ANO_MIN = 2000
-_ANO_MAX = 2030
+_ANO_MIN = 2015
+_ANO_MAX= date.today().year
 _DIST_MIN_LEN = 2
 
 
