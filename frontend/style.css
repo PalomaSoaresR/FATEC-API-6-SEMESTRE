@@ -11,7 +11,7 @@
 
 .sidebar {
   display: flex;
-  width: 30vh;
+  width: 35vh;
   height: 100vh;
   padding: 32px;
   flex-direction: column;
@@ -45,8 +45,8 @@
   background: #DD7230;
   display: flex;
   align-items: center;
-  width: 20vh;
-  padding: 16px;
+  width: 26vh;
+  padding: 14px;
 }
 
 /* CONTEÚDO PRINCIPAL */
@@ -61,10 +61,10 @@
 
 .card {
   display: flex;
-  width: 380px;              /* antes: 440px */
-  padding: 20px;             /* antes: 24px */
+  width: 380px;
+  padding: 20px;
   flex-direction: column;
-  gap: 6px;                  /* antes: 8px */
+  gap: 6px;
   background: #20201F;
   border-radius: 8px;
 }
@@ -88,8 +88,6 @@
   padding-bottom: 20px;
 }
 
-
-/* CAMPOS */
 .field {
   display: flex;
   flex-direction: column;
@@ -126,6 +124,21 @@ select:hover {
   border-color: #DD7230;
 }
 
+.field-input {
+  display: flex;
+  padding: 8px 10px;
+  align-items: center;
+  align-self: stretch;
+  height: 40px;
+  border-radius: 2px;
+  background: #353535;
+  color: #fff;
+  font-size: 12px;
+}
+
+.field-input:hover{
+  border-color: #DD7230;
+}
 
 .primary-btn {
   display: flex;
@@ -250,7 +263,7 @@ select:hover {
 
   .card {
     width: 100%;
-    max-width: 380px;        /* acompanha a nova largura */
+    max-width: 380px;
   }
 }
 
@@ -291,7 +304,7 @@ select:hover {
   .card {
     width: 100%;
     max-width: 100%;
-    padding: 18px;           /* levemente menor */
+    padding: 18px;
   }
 
   .card-title {
