@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime
 
+from backend.tasks.task_calculate_pt_pnt import task_calculate_pt_pnt
 import httpx
 
 from sqlalchemy import select, update
@@ -128,6 +129,7 @@ async def trigger_pipeline_flow(
     job_id = str(uuid.uuid4())
 
     task = task_download_gdb.delay(job_id, download_url, distribuidora_id)
+    task_calculate_pt_pnt.delay(job_id, distribuidora_id)
 
     await save_distribuidora_job_tracking(
         session=session,
