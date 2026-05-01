@@ -1,18 +1,17 @@
 import logging
+from datetime import date
 
 from fastapi import APIRouter, HTTPException, Query
 
 from backend.core.schemas import CriticidadeResponse
 from backend.services.criticidade import calcular_score_criticidade
-from datetime import date
-
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 _ANO_MIN = 2015
-_ANO_MAX= date.today().year
+_ANO_MAX = date.today().year
 _DIST_MIN_LEN = 2
 
 
@@ -55,7 +54,7 @@ async def calcular_criticidade_endpoint(
             raise HTTPException(
                 status_code=404,
                 detail=(
-                    f"Dados não encontrados para distribuidora"
+                    f'Dados não encontrados para distribuidora'
                     f" '{distribuidora}' no ano {ano}"
                 ),
             )

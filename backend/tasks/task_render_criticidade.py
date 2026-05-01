@@ -41,8 +41,12 @@ def _output_dir() -> Path:
     return path
 
 
-@celery_app.task(bind=True, max_retries=MAX_WAIT_RETRIES, name='etl.render_tabela_score')
-def task_render_tabela_score(self, job_id: str, distribuidora: str, ano: int) -> dict:
+@celery_app.task(
+    bind=True, max_retries=MAX_WAIT_RETRIES, name='etl.render_tabela_score'
+)
+def task_render_tabela_score(
+    self, job_id: str, distribuidora: str, ano: int
+) -> dict:
     logger.info('[task_render_tabela_score] Inicio. job_id=%s', job_id)
 
     db = get_mongo_sync_db()
@@ -59,11 +63,26 @@ def task_render_tabela_score(self, job_id: str, distribuidora: str, ano: int) ->
     conjuntos = mapa_doc.get('conjuntos', [])
     if not conjuntos:
         logger.warning(
-            '[task_render_tabela_score] Nenhum conjunto disponível. job_id=%s', job_id
+            '[task_render_tabela_score] Nenhum conjunto disponível. job_id=%s',
+            job_id,
         )
-        return {'job_id': job_id, 'status': 'skipped', 'reason': 'no_conjuntos'}
+        return {
+            'job_id': job_id,
+            'status': 'skipped',
+            'reason': 'no_conjuntos',
+        }
 
-    colunas = ['#', 'Conjunto', 'DEC Real.', 'DEC Lim.', 'FEC Real.', 'FEC Lim.', 'Desv. DEC %', 'Desv. FEC %', 'Score']
+    colunas = [
+        '#',
+        'Conjunto',
+        'DEC Real.',
+        'DEC Lim.',
+        'FEC Real.',
+        'FEC Lim.',
+        'Desv. DEC %',
+        'Desv. FEC %',
+        'Score',
+    ]
     linhas = [
         [
             rank,
@@ -99,7 +118,9 @@ def task_render_tabela_score(self, job_id: str, distribuidora: str, ano: int) ->
     score_col_idx = len(colunas) - 1
     for row_idx, conj in enumerate(conjuntos, start=1):
         score = conj.get('score_criticidade', 0)
-        table[row_idx, score_col_idx].set_facecolor(mcolors.to_rgba(_cor_score(score)))
+        table[row_idx, score_col_idx].set_facecolor(
+            mcolors.to_rgba(_cor_score(score))
+        )
 
     sig = score_doc.get('distribuidora', distribuidora.upper())
     ax.set_title(
@@ -114,12 +135,20 @@ def task_render_tabela_score(self, job_id: str, distribuidora: str, ano: int) ->
     plt.savefig(out_path, dpi=150, bbox_inches='tight')
     plt.close(fig)
 
-    logger.info('[task_render_tabela_score] Concluida. job_id=%s path=%s', job_id, out_path)
+    logger.info(
+        '[task_render_tabela_score] Concluida. job_id=%s path=%s',
+        job_id,
+        out_path,
+    )
     return {'job_id': job_id, 'status': 'done', 'path': str(out_path)}
 
 
-@celery_app.task(bind=True, max_retries=MAX_WAIT_RETRIES, name='etl.render_mapa_calor')
-def task_render_mapa_calor(self, job_id: str, distribuidora: str, ano: int) -> dict:
+@celery_app.task(
+    bind=True, max_retries=MAX_WAIT_RETRIES, name='etl.render_mapa_calor'
+)
+def task_render_mapa_calor(
+    self, job_id: str, distribuidora: str, ano: int
+) -> dict:
     logger.info('[task_render_mapa_calor] Inicio. job_id=%s', job_id)
 
     db = get_mongo_sync_db()
@@ -148,13 +177,21 @@ def task_render_mapa_calor(self, job_id: str, distribuidora: str, ano: int) -> d
 
     if not categoria_por_conj:
         logger.warning(
-            '[task_render_mapa_calor] Nenhum conjunto com categoria. job_id=%s', job_id
+            '[task_render_mapa_calor] Nenhum conjunto com categoria. job_id=%s',
+            job_id,
         )
-        return {'job_id': job_id, 'status': 'skipped', 'reason': 'no_categorias'}
+        return {
+            'job_id': job_id,
+            'status': 'skipped',
+            'reason': 'no_categorias',
+        }
 
     features = []
     for doc in db['segmentos_mt_geo'].find(
-        {'job_id': gdb_job_id, 'CONJ': {'$in': list(categoria_por_conj.keys())}},
+        {
+            'job_id': gdb_job_id,
+            'CONJ': {'$in': list(categoria_por_conj.keys())},
+        },
         {'_id': 0, 'CONJ': 1, 'geometry': 1},
     ):
         geom_dict = doc.get('geometry')
@@ -167,13 +204,21 @@ def task_render_mapa_calor(self, job_id: str, distribuidora: str, ano: int) -> d
                 'categoria': categoria_por_conj.get(int(conj_id), 'Verde'),
             })
         except Exception:
-            logger.debug('[task_render_mapa_calor] Geometria inválida descartada. CONJ=%s', conj_id)
+            logger.debug(
+                '[task_render_mapa_calor] Geometria inválida descartada. CONJ=%s',
+                conj_id,
+            )
 
     if not features:
         logger.warning(
-            '[task_render_mapa_calor] Nenhuma geometria disponível. job_id=%s', job_id
+            '[task_render_mapa_calor] Nenhuma geometria disponível. job_id=%s',
+            job_id,
         )
-        return {'job_id': job_id, 'status': 'skipped', 'reason': 'no_geometries'}
+        return {
+            'job_id': job_id,
+            'status': 'skipped',
+            'reason': 'no_geometries',
+        }
 
     gdf = gpd.GeoDataFrame(features, geometry='geometry', crs='EPSG:4326')
     gdf['cor'] = gdf['categoria'].map(_CATEGORIA_COR)
@@ -207,5 +252,9 @@ def task_render_mapa_calor(self, job_id: str, distribuidora: str, ano: int) -> d
     plt.savefig(out_path, dpi=150, bbox_inches='tight')
     plt.close(fig)
 
-    logger.info('[task_render_mapa_calor] Concluida. job_id=%s path=%s', job_id, out_path)
+    logger.info(
+        '[task_render_mapa_calor] Concluida. job_id=%s path=%s',
+        job_id,
+        out_path,
+    )
     return {'job_id': job_id, 'status': 'done', 'path': str(out_path)}

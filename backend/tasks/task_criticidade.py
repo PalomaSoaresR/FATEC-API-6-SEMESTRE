@@ -80,8 +80,12 @@ def _buscar_limites(db, ano: int, distribuidora: str) -> list[dict]:
     return list(db['dec_fec_limite'].aggregate(pipeline))
 
 
-@celery_app.task(bind=True, max_retries=MAX_WAIT_RETRIES, name='etl.score_criticidade')
-def task_score_criticidade(self, job_id: str, distribuidora: str, ano: int) -> dict:
+@celery_app.task(
+    bind=True, max_retries=MAX_WAIT_RETRIES, name='etl.score_criticidade'
+)
+def task_score_criticidade(
+    self, job_id: str, distribuidora: str, ano: int
+) -> dict:
     logger.info('[task_score_criticidade] Inicio. job_id=%s', job_id)
 
     db = get_mongo_sync_db()
@@ -101,7 +105,9 @@ def task_score_criticidade(self, job_id: str, distribuidora: str, ano: int) -> d
         return {'job_id': job_id, 'status': 'skipped', 'reason': 'no_data'}
 
     realizados_dict = {
-        (r['sig_agente'], r['ide_conj'], r['sig_indicador']): r['valor_realizado']
+        (r['sig_agente'], r['ide_conj'], r['sig_indicador']): r[
+            'valor_realizado'
+        ]
         for r in dados_realizados
     }
     limites_dict = {
@@ -110,11 +116,16 @@ def task_score_criticidade(self, job_id: str, distribuidora: str, ano: int) -> d
     }
 
     conjuntos: dict[str, dict] = {}
-    for (sig_agente, ide_conj, sig_indicador), valor_realizado in realizados_dict.items():
+    for (
+        sig_agente,
+        ide_conj,
+        sig_indicador,
+    ), valor_realizado in realizados_dict.items():
         if (sig_agente, ide_conj, sig_indicador) not in limites_dict:
             continue
         desvio = _calcular_desvio(
-            valor_realizado, limites_dict[(sig_agente, ide_conj, sig_indicador)]
+            valor_realizado,
+            limites_dict[(sig_agente, ide_conj, sig_indicador)],
         )
         if ide_conj not in conjuntos:
             conjuntos[ide_conj] = {
@@ -134,15 +145,23 @@ def task_score_criticidade(self, job_id: str, distribuidora: str, ano: int) -> d
             distribuidora,
             ano,
         )
-        return {'job_id': job_id, 'status': 'skipped', 'reason': 'no_complete_data'}
+        return {
+            'job_id': job_id,
+            'status': 'skipped',
+            'reason': 'no_complete_data',
+        }
 
     for c in conjuntos.values():
         c['score_criticidade'] = c['desvio_dec'] + c['desvio_fec']
 
     scores = [c['score_criticidade'] for c in conjuntos.values()]
     score_medio = sum(scores) / len(scores)
-    desvio_dec_medio = sum(c['desvio_dec'] for c in conjuntos.values()) / len(conjuntos)
-    desvio_fec_medio = sum(c['desvio_fec'] for c in conjuntos.values()) / len(conjuntos)
+    desvio_dec_medio = sum(c['desvio_dec'] for c in conjuntos.values()) / len(
+        conjuntos
+    )
+    desvio_fec_medio = sum(c['desvio_fec'] for c in conjuntos.values()) / len(
+        conjuntos
+    )
 
     resultado = {
         'ano': ano,
@@ -161,12 +180,16 @@ def task_score_criticidade(self, job_id: str, distribuidora: str, ano: int) -> d
     )
 
     logger.info(
-        '[task_score_criticidade] Concluida. job_id=%s score=%.2f', job_id, score_medio
+        '[task_score_criticidade] Concluida. job_id=%s score=%.2f',
+        job_id,
+        score_medio,
     )
     return {'job_id': job_id, 'status': 'done', 'score': score_medio}
 
 
-@celery_app.task(bind=True, max_retries=MAX_WAIT_RETRIES, name='etl.mapa_criticidade')
+@celery_app.task(
+    bind=True, max_retries=MAX_WAIT_RETRIES, name='etl.mapa_criticidade'
+)
 def task_mapa_criticidade(
     self, job_id: str, distribuidora_id: str, distribuidora: str, ano: int
 ) -> dict:
@@ -189,7 +212,10 @@ def task_mapa_criticidade(
     dados_limites = _buscar_limites(db, ano, distribuidora)
 
     realizados_dict = {
-        (r['sig_agente'], r['ide_conj'], r['sig_indicador']): (r['valor_realizado'], r.get('dsc_conj', ''))
+        (r['sig_agente'], r['ide_conj'], r['sig_indicador']): (
+            r['valor_realizado'],
+            r.get('dsc_conj', ''),
+        )
         for r in dados_realizados
     }
     limites_dict = {
@@ -198,7 +224,10 @@ def task_mapa_criticidade(
     }
 
     conjuntos: dict[str, dict] = {}
-    for (sig_agente, ide_conj, sig_indicador), (valor_realizado, dsc_conj) in realizados_dict.items():
+    for (sig_agente, ide_conj, sig_indicador), (
+        valor_realizado,
+        dsc_conj,
+    ) in realizados_dict.items():
         limite = limites_dict.get((sig_agente, ide_conj, sig_indicador), 0.0)
         desvio = _calcular_desvio(valor_realizado, limite)
         if ide_conj not in conjuntos:
@@ -251,4 +280,8 @@ def task_mapa_criticidade(
         job_id,
         len(conjuntos_final),
     )
-    return {'job_id': job_id, 'status': 'done', 'total_conjuntos': len(conjuntos_final)}
+    return {
+        'job_id': job_id,
+        'status': 'done',
+        'total_conjuntos': len(conjuntos_final),
+    }

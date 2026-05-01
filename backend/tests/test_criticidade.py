@@ -107,18 +107,14 @@ def test_endpoint_criticidade_sucesso():
 
 def test_endpoint_criticidade_ano_invalido():
     """Testa endpoint com ano inválido."""
-    response = client.get(
-        '/etl/criticidade?ano=1999&distribuidora=EQUATORIAL'
-    )
+    response = client.get('/etl/criticidade?ano=1999&distribuidora=EQUATORIAL')
     assert response.status_code == 400
     assert 'Ano deve estar entre' in response.json()['detail']
 
 
 def test_endpoint_criticidade_ano_futuro():
     """Testa endpoint com ano muito futuro."""
-    response = client.get(
-        '/etl/criticidade?ano=2050&distribuidora=EQUATORIAL'
-    )
+    response = client.get('/etl/criticidade?ano=2050&distribuidora=EQUATORIAL')
     assert response.status_code == 400
     assert 'Ano deve estar entre' in response.json()['detail']
 

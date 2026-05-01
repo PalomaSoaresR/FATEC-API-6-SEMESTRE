@@ -68,7 +68,17 @@ async def render_tabela_score_criticidade(
     if not conjuntos:
         raise ValueError('Nenhum conjunto disponível para renderizar a tabela')
 
-    colunas = ['#', 'Conjunto', 'DEC Real.', 'DEC Lim.', 'FEC Real.', 'FEC Lim.', 'Desv. DEC %', 'Desv. FEC %', 'Score']
+    colunas = [
+        '#',
+        'Conjunto',
+        'DEC Real.',
+        'DEC Lim.',
+        'FEC Real.',
+        'FEC Lim.',
+        'Desv. DEC %',
+        'Desv. FEC %',
+        'Score',
+    ]
     linhas = [
         [
             rank,
@@ -104,7 +114,9 @@ async def render_tabela_score_criticidade(
     score_col_idx = len(colunas) - 1
     for row_idx, conj in enumerate(conjuntos, start=1):
         score = conj.get('score_criticidade', 0)
-        table[row_idx, score_col_idx].set_facecolor(mcolors.to_rgba(_cor_score(score)))
+        table[row_idx, score_col_idx].set_facecolor(
+            mcolors.to_rgba(_cor_score(score))
+        )
 
     sig = score_doc.get('distribuidora', distribuidora.upper())
     ax.set_title(
@@ -131,7 +143,7 @@ async def render_mapa_calor_criticidade(distribuidora: str, ano: int) -> Path:
 
     mapa_doc = await get_mongo_collection('mapa_criticidade').find_one(
         {'distribuidora': distribuidora.upper(), 'ano': ano},
-        {'_id': 0, 'job_id': 1},
+        {'_id': 0, 'job_id': 1, 'conjuntos': 1},
     )
     job_id = mapa_doc.get('job_id') if mapa_doc else None
     if not job_id:
@@ -140,7 +152,7 @@ async def render_mapa_calor_criticidade(distribuidora: str, ano: int) -> Path:
         )
 
     categoria_por_conj: dict[int, str] = {}
-    for conj in score_doc.get('conjuntos', []):
+    for conj in (mapa_doc.get('conjuntos', []) if mapa_doc else []):
         try:
             ide = int(conj['ide_conj'])
         except (KeyError, ValueError, TypeError):
