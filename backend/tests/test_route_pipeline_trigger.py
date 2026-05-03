@@ -107,7 +107,7 @@ async def test_pipeline_trigger_chain_contem_todas_as_tasks(
     # chain foi chamado com exatamente 6 signatures (download + 5 pós-ETL)
     mock_chain.assert_called_once()
     sigs = mock_chain.call_args.args
-    assert len(sigs) == 6
+    assert len(sigs) == 7
 
     assert sigs[0].task == 'etl.download_gdb'
     assert sigs[0].args == (job_id, 'https://www.arcgis.com/sharing/rest/content/items/item-chain/data', 'item-chain')
@@ -121,11 +121,18 @@ async def test_pipeline_trigger_chain_contem_todas_as_tasks(
     assert sigs[3].task == 'etl.mapa_criticidade'
     assert sigs[3].args == (job_id, 'item-chain', 'DIST CHAIN', 2026)
 
-    assert sigs[4].task == 'etl.render_tabela_score'
-    assert sigs[4].args == (job_id, 'DIST CHAIN', 2026)
+    assert sigs[4].task == 'etl.calcular_tam'
+    assert sigs[4].args == (job_id, {
+        "id": "item-chain",
+        "dist_name": "DIST CHAIN",
+        "date_gdb": 2026
+    })
 
-    assert sigs[5].task == 'etl.render_mapa_calor'
+    assert sigs[5].task == 'etl.render_tabela_score'
     assert sigs[5].args == (job_id, 'DIST CHAIN', 2026)
+
+    assert sigs[6].task == 'etl.render_mapa_calor'
+    assert sigs[6].args == (job_id, 'DIST CHAIN', 2026)
 
     mock_chain.return_value.delay.assert_called_once()
 
