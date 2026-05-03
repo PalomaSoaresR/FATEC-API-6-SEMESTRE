@@ -4,7 +4,7 @@ from datetime import datetime
 from backend.database import get_mongo_sync_db
 from backend.services.calculo_tam import calcular_extensao_tam, salvar_resultados_tam
 from backend.tasks.celery_app import celery_app
-from core.schemas import DistributorMetadata
+from backend.core.schemas import DistributorMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +13,30 @@ logger = logging.getLogger(__name__)
 def task_calcular_tam(job_id: str, metadados_dist: dict):
     db = get_mongo_sync_db()
 
-    segmentos = list(db.segmentos_mt_tabular.find({"job_id": job_id}))
+    pipeline = [
+        {"$match": {"job_id": job_id}},
+        {
+            "$group": {
+                "_id": {
+                    "CONJ": "$CONJ",
+                    "CTMT": "$CTMT"
+                },
+                "extensao_total": {"$sum": "$COMP"},
+                "quantidade_segmentos": {"$sum": 1}
+            }
+        },
+        {
+            "$project": {
+                "_id": 0,
+                "conjunto": "$_id.CONJ",
+                "circuito": "$_id.CTMT",
+                "extensao": "$extensao_total",
+                "contagem": "$quantidade_segmentos"
+            }
+        }
+    ]
+
+    segmentos = list(db.segmentos_mt_tabular.aggregate(pipeline))
     
     if not segmentos:
         logger.warning(f"Nenhum dado encontrado para o job {job_id}")

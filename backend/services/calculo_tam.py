@@ -7,12 +7,6 @@ from backend.core.schemas import TamResponse, DistributorMetadata
 from backend.database import get_mongo_async_db, get_mongo_sync_db
 
 logger = logging.getLogger(__name__)
-
-def _to_float(value: Any) -> Optional[float]:
-    try:
-        return float(value) if value is not None else None
-    except (ValueError, TypeError):
-        return None
     
 
 async def obter_resultados_tam(job_id: str) -> List[Dict]:
@@ -27,42 +21,39 @@ async def obter_resultados_tam(job_id: str) -> List[Dict]:
 
 def calcular_extensao_tam(
     metadata: DistributorMetadata,   
-    segmentos: List[dict],
+    segmentos: List[dict],  
     map_circuitos: Dict[str, str],
     map_conjuntos: Dict[str, str]
 ) -> List[TamResponse]:
     
     data_proc = datetime.now().isoformat()
-    soma_por_trecho = defaultdict(float)
+    resultados = []
 
     for row in segmentos:
-        comp = _to_float(row.get('COMP'))
-        if comp is None: 
-            continue
+        c_conj = str(row.get('conjunto', '')).strip()
+        c_ctmt = str(row.get('circuito', '')).strip()
+        extensao_bruta = row.get('extensao', 0.0) 
 
-        c_conj = str(row.get('CONJ', '')).strip()
-        c_ctmt = str(row.get('CTMT', '')).strip()
-        
         n_conj = map_conjuntos.get(c_conj, c_conj)
         n_circ = map_circuitos.get(c_ctmt, c_ctmt)
 
-        chave = (c_conj, n_conj, c_ctmt, n_circ)
-        soma_por_trecho[chave] += (comp / 1000.0)
+        km = extensao_bruta / 1000.0
 
-    return [
-        TamResponse(
-            job_id=metadata.job_id,
-            id_dist=metadata.id,
-            dist_name=metadata.dist_name, 
-            ano_gdb=metadata.date_gdb,
-            data_processamento=data_proc,
-            CONJ=n_conj_val,
-            CTMT=c_ctmt_val,
-            NOME=n_circ_val,
-            COMP_KM=round(km, 6)
+        resultados.append(
+            TamResponse(
+                job_id=metadata.job_id,
+                id_dist=metadata.id,
+                dist_name=metadata.dist_name, 
+                ano_gdb=metadata.date_gdb,
+                data_processamento=data_proc,
+                CONJ=n_conj,
+                CTMT=c_ctmt,
+                NOME=n_circ,
+                COMP_KM=round(km, 6)
+            )
         )
-        for (c_conj_val, n_conj_val, c_ctmt_val, n_circ_val), km in soma_por_trecho.items()
-    ]
+
+    return resultados
 
 
 async def ranking_tam(

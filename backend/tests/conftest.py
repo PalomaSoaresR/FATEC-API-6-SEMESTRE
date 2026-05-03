@@ -18,6 +18,8 @@ from backend.core import models as _models  # noqa: F401
 from backend.core.models import User, table_registry
 from backend.database import get_mongo_async_database, get_session
 from backend.security import get_password_hash
+from backend.services.pipeline_trigger import trigger_pipeline_flow
+from backend.tasks.celery_app import celery_app
 
 
 class UserFactory(factory.Factory):
@@ -29,10 +31,17 @@ class UserFactory(factory.Factory):
     password = factory.LazyAttribute(lambda obj: f'{obj.username}+senha')
 
 
+@pytest.fixture(scope="session", autouse=True)
+def setup_celery_test_config():
+    """Configura o Celery para modo síncrono durante os testes."""
+    celery_app.conf.update(
+        task_always_eager=True,     
+        task_eager_propagates=True, 
+    )
+
 @pytest_asyncio.fixture
 async def triggered_job(session, setup_distribuidora):
     """Aciona o trigger_pipeline_flow isolando a rede e retorna o job_id gerado."""
-    from backend.services.pipeline_trigger import trigger_pipeline_flow
     
     dist_data = setup_distribuidora
     
@@ -47,6 +56,7 @@ async def triggered_job(session, setup_distribuidora):
 
     with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
         mock_get.return_value = mock_response
+        
         result = await trigger_pipeline_flow(
             session=session,
             distribuidora_id=dist_data["id"],
@@ -247,9 +257,22 @@ def pytest_sessionstart(session):
     os.environ.setdefault('MAIL_PORT', '587')
     os.environ.setdefault('MAIL_FROM', 'admin@test.com')
 
+
 @pytest.fixture(scope="session", autouse=True)
-def setup_celery_test_env():
-    os.environ["CELERY_BROKER_URL"] = "memory://"
-    os.environ["CELERY_RESULT_BACKEND"] = "cache+memory://"    
-    os.environ["CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP"] = "False"
-    os.environ["CELERY_BROKER_CONNECTION_MAX_RETRIES"] = "1"
+def setup_celery_test_config():
+    """
+    Força o Celery a usar configurações de teste, independente de 
+    quando as variáveis de ambiente foram setadas.
+    """
+    celery_app.conf.update(
+        task_always_eager=True,
+        task_eager_propagates=True,
+
+        broker_url="memory://",
+        result_backend="cache+memory://",
+        
+        broker_connection_retry_on_startup=False,
+        broker_connection_max_retries=1
+    )
+    
+    yield celery_app

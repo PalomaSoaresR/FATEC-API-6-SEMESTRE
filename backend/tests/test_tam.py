@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from sqlalchemy import text
@@ -7,11 +7,18 @@ from sqlalchemy import text
 @pytest.fixture(autouse=True)
 def mock_external_deps(mongo_db):
     """
-    Isola o teste de dependências externas.
+    Isola o teste de dependências externas, garantindo que o Celery não seja acionado.
     """
     with patch("backend.services.pipeline_trigger.get_mongo_async_db", return_value=mongo_db), \
-         patch("backend.services.etl_download.enqueue_download_gdb") as mock_enqueue:
-        yield mock_enqueue
+         patch("backend.services.etl_download.enqueue_download_gdb") as mock_enqueue, \
+         patch("backend.services.pipeline_trigger.chain") as mock_chain:
+        
+        mock_chain.return_value.delay.return_value = MagicMock(id="mock-job-id")
+        
+        yield {
+            "enqueue_download_gdb": mock_enqueue, 
+            "chain": mock_chain
+        }
 
 
 @pytest.mark.asyncio

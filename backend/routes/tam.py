@@ -1,3 +1,5 @@
+from typing import List
+
 from fastapi import APIRouter, HTTPException
 from backend.services.calculo_tam import obter_resultados_tam
 from backend.core.schemas import TamResponse
@@ -6,7 +8,7 @@ router = APIRouter()
 
 @router.get(
     "/tam/{job_id}",
-    response_model=TamResponse,
+    response_model=List[TamResponse],
     status_code=200
 )
 async def get_tam_results(job_id: str):
@@ -18,8 +20,4 @@ async def get_tam_results(job_id: str):
             detail="Resultados não encontrados para o job informado."
         )
 
-    return {
-        "status": "success",
-        "job_id": job_id,
-        "data": resultados
-    }
+    return resultados
