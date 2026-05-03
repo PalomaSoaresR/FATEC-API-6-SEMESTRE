@@ -107,7 +107,7 @@ async def test_pipeline_trigger_chain_contem_todas_as_tasks(
     # chain foi chamado com exatamente 7 signatures (download + 5 pós-ETL)
     mock_chain.assert_called_once()
     sigs = mock_chain.call_args.args
-    assert len(sigs) == 8
+    assert len(sigs) == 9
 
     assert sigs[0].task == 'etl.download_gdb'
     assert sigs[0].args == (job_id, 'https://www.arcgis.com/sharing/rest/content/items/item-chain/data', 'item-chain')
