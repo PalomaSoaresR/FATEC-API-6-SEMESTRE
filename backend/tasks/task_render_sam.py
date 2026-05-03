@@ -52,44 +52,36 @@ def task_render_sam(
         return {'job_id': job_id, 'status': 'skipped', 'reason': 'no_records'}
 
     conjuntos = [r.get('nome') or r.get('conjunto', '') for r in records]
-    sam_vals  = np.array([r.get('sam_km', 0.0) for r in records])
+    sam_vals = np.array([r.get('sam_km', 0.0) for r in records])
 
-    x = np.arange(len(conjuntos))
+    conjuntos = conjuntos[::-1]
+    sam_vals = sam_vals[::-1]
 
-    fig_width = max(14, len(conjuntos) * 0.85)
-    fig, ax = plt.subplots(figsize=(fig_width, 7))
+    y = np.arange(len(conjuntos))
+
+    fig_height = max(7, len(conjuntos) * 0.4)
+    fig, ax = plt.subplots(figsize=(14, fig_height))
     fig.patch.set_facecolor('white')
     ax.set_facecolor('white')
 
-    bars = ax.bar(x, sam_vals, width=0.55, color=_COR_SAM, zorder=3)
+    ax.barh(y, sam_vals, height=0.55, color=_COR_SAM, zorder=3)
 
-    # Valor no topo de cada barra
-    for bar, val in zip(bars, sam_vals):
-        if val > 0:
-            ax.text(
-                bar.get_x() + bar.get_width() / 2,
-                bar.get_height() + sam_vals.max() * 0.01,
-                f'{val:.3f}',
-                ha='center', va='bottom',
-                fontsize=7, color='#333333',
-            )
-
-    ax.set_xticks(x)
-    ax.set_xticklabels(conjuntos, rotation=45, ha='right', fontsize=8, color='#333333')
-    ax.yaxis.set_major_formatter(
+    ax.set_xlim(left=0)
+    ax.set_yticks(y)
+    ax.set_yticklabels(conjuntos, fontsize=8, color='#333333')
+    ax.xaxis.set_major_formatter(
         mticker.FuncFormatter(lambda v, _: f'{v:.2f}')
     )
-    ax.tick_params(axis='y', colors='#555555', labelsize=8)
-    ax.set_ylabel('SAM (km)', fontsize=9, color='#555555')
+    ax.tick_params(axis='x', colors='#555555', labelsize=8)
+    ax.set_xlabel('SAM (km)', fontsize=9, color='#555555')
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     ax.spines['left'].set_color('#cccccc')
     ax.spines['bottom'].set_color('#cccccc')
-    ax.grid(axis='y', color='#eeeeee', linewidth=0.8, zorder=0)
+    ax.grid(axis='x', color='#eeeeee', linewidth=0.8, zorder=0)
 
     ax.set_title(
-        f'Gráfico de todos os Conjuntos (SAM)\n'
-        f'{sig_agente} |  Ano: {ano}',
+        f'Gráfico de todos os Conjuntos (SAM)\n{sig_agente} |  Ano: {ano}',
         fontsize=11,
         color='#222222',
         pad=14,
