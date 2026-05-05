@@ -26,6 +26,10 @@ celery_app = Celery(
         'backend.tasks.task_render_criticidade',
         'backend.tasks.task_render_pt_and_pnt',
         'backend.tasks.task_calculate_sam',
+        'backend.tasks.task_render_sam',
+        'backend.tasks.task_report',
+        'backend.tasks.task_pipeline_error',
+        'backend.tasks.task_cleanup_files',
     ],
 )
 
