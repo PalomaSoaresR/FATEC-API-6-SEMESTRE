@@ -46,6 +46,8 @@ jobs:
       MAIL_FROM: "test@fatec.com"
       MAIL_SERVER: "smtp.test.com"
       MAIL_PORT: 587
+      DEC_FEC_REALIZADO: "teste_realizado.csv"
+      DEC_FEC_LIMITE: "teste_limite.csv"
 
     steps:
       - name: Checkout repository
