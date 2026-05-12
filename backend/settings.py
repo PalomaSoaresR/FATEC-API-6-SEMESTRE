@@ -29,5 +29,5 @@ class Settings(BaseSettings):
     mail_port: int = 587
     mail_server: str
 
-    dec_fec_realizado: str
-    dec_fec_limite: str
+    dec_fec_realizado: str | None
+    dec_fec_limite: str | None
