@@ -22,6 +22,11 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./setup.sh:/app/setup.sh
       - ./setup_data:/app/setup_flag
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
 
 
   worker:
@@ -92,6 +97,10 @@ services:
       - "27017:27017"
     volumes:
       - mongo_data:/data/db
+    deploy:
+      resources:
+        limits:
+          memory: 2G
 
   frontend:
     image: nginx:alpine
