@@ -22,15 +22,16 @@ async def test_registration_without_consent_returns_400(client):
 
 
 async def test_create_user(client, consent_policy):
-    response = await client.post(
-        '/users/',
-        json={
-            'username': 'testeusername',
-            'email': 'teste@teste.com',
-            'password': 'password',
-            'consented': True,
-        },
-    )
+    with patch('backend.routes.users.send_confirmation_email', new_callable=AsyncMock):
+        response = await client.post(
+            '/users/',
+            json={
+                'username': 'testeusername',
+                'email': 'teste@teste.com',
+                'password': 'password',
+                'consented': True,
+            },
+        )
 
     assert response.status_code == HTTPStatus.CREATED
     data = response.json()
